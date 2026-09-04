@@ -9190,6 +9190,14 @@ function buildRouteHash(route) {
   return "#" + view;
 }
 
+function routeUrl(route) {
+  return window.location.pathname + window.location.search + buildRouteHash(route);
+}
+
+function currentUrl() {
+  return window.location.pathname + window.location.search + (window.location.hash || "");
+}
+
 function parseRoute() {
   const raw = (window.location.hash || "").replace(/^#\/?/, "").trim();
   if (raw === "") return { view: "departments", account: null };
@@ -9200,18 +9208,20 @@ function parseRoute() {
   return { view, account: accountPart };
 }
 
-let routeSilent = false;
-
-function syncRouteHash(route) {
-  const hash = buildRouteHash(route);
-  if (window.location.hash === hash) return;
-  routeSilent = true;
-  window.location.hash = hash.slice(1);
+function writeRoute(route, opts) {
+  const replace = opts && opts.replace === true;
+  const payload = { view: route.view, account: route.account || null };
+  const url = routeUrl(payload);
+  if (currentUrl() === url) return;
+  if (replace === true) {
+    history.replaceState({ modRoute: payload }, "", url);
+  } else {
+    history.pushState({ modRoute: payload }, "", url);
+  }
 }
 
 function applyRoute(route, opts) {
   const skipHash = opts && opts.skipHash === true;
-  const replaceHash = opts && opts.replace === true;
   const view = ROUTE_VIEW_IDS.has(route.view) ? route.view : "departments";
   if (view !== "map" && state.view === "map") bmapReset();
   state.view = view;
@@ -9225,14 +9235,7 @@ function applyRoute(route, opts) {
   }
   render();
   if (skipHash !== true) {
-    const hash = buildRouteHash({ view, account: view === "departments" ? route.account : null });
-    if (window.location.hash !== hash) {
-      if (replaceHash === true) {
-        history.replaceState(null, "", hash);
-      } else {
-        syncRouteHash({ view, account: view === "departments" ? route.account : null });
-      }
-    }
+    writeRoute({ view, account: view === "departments" ? route.account : null }, opts);
   }
   window.scrollTo(0, 0);
 }
@@ -9242,11 +9245,11 @@ function setView(id) {
   applyRoute({ view: id, account: null });
 }
 
+window.addEventListener("popstate", () => {
+  applyRoute(parseRoute(), { skipHash: true });
+});
+
 window.addEventListener("hashchange", () => {
-  if (routeSilent === true) {
-    routeSilent = false;
-    return;
-  }
   applyRoute(parseRoute(), { skipHash: true });
 });
 
